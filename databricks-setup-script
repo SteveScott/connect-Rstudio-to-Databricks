@@ -1,0 +1,59 @@
+# This script robustly sets up the Python environment.
+# It first tries to use your EXISTING miniconda3 installation.
+# If not found, it installs a fresh version for R (`r-miniconda`).
+
+tryCatch({
+  # --- STEP 1: Find or Install a Conda Installation ---
+  
+  # First, check for the user's existing miniconda3
+  user_conda_path <- file.path(Sys.getenv("LOCALAPPDATA"), "miniconda3", "Scripts", "conda.exe")
+  cat("Looking for your existing conda executable at:", user_conda_path, "\n")
+  
+  if (file.exists(user_conda_path)) {
+    # If found, set it as the conda to use
+    cat("Existing miniconda3 found. Using it.\n")
+    conda_to_use <- user_conda_path
+  } else {
+    # If not found, install reticulate's own version
+    cat("Existing miniconda3 not found. Installing a fresh copy for R/reticulate...\n")
+    # Use force=TRUE to overwrite any previous broken r-miniconda installations
+    reticulate::install_miniconda(force = TRUE)
+    # Set the newly installed conda as the one to use
+    conda_to_use <- file.path(reticulate::miniconda_path(), "Scripts", "conda.exe")
+  }
+  
+  # --- STEP 2: Force reticulate to use the chosen conda executable ---
+  cat("Forcing reticulate to use conda at:", conda_to_use, "\n")
+  Sys.setenv(RETICULATE_CONDA = conda_to_use)
+  
+  # --- STEP 3: Create the conda environment ---
+  env_name <- "r-sparklyr-databricks-14.3"
+  python_version <- "3.11"
+  
+  # First, remove the environment if it exists from a previous failed attempt
+  if (env_name %in% reticulate::conda_list()$name) {
+    cat("An old version of '", env_name, "' was found. Removing it first...\n", sep="")
+    reticulate::conda_remove(envname = env_name)
+  }
+  
+  # Now, create it fresh
+  cat("\nCreating new conda environment '", env_name, "' with Python ", python_version, "...\n", sep = "")
+  reticulate::conda_create(envname = env_name, python_version = python_version)
+  
+  # --- STEP 4: Install the Databricks Connect package ---
+  package_to_install <- "databricks-connect==14.3.1"
+  cat("\nInstalling '", package_to_install, "' into the new environment...\n", sep = "")
+  reticulate::conda_install(envname = env_name, packages = package_to_install, pip = TRUE)
+  
+  cat("\n-----------------------------------\n")
+  cat("SUCCESS: Setup script completed successfully.\n")
+  cat("-----------------------------------\n")
+  
+}, error = function(e) {
+  cat("\n-----------------------------------\n")
+  cat("ERROR: Setup script failed.\n")
+  cat("The error message was:\n")
+  cat(e$message, "\n")
+  cat("-----------------------------------\n")
+  stop("Setup failed.")
+})
